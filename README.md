@@ -1,0 +1,3 @@
+# SQLAdmin
+
+My administrative scripts

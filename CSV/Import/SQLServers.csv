@@ -1,0 +1,3 @@
+SQLServer,Env,License,Desc
+ServerName1,PROD,OPEN,"SQL production Server"
+ServerName2,DEV,MSDN,"SQL dev Server"
