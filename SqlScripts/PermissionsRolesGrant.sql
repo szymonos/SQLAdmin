@@ -55,7 +55,7 @@ begin
     declare permission_databases cursor fast_forward for
     select name
     from sys.databases
-    where database_id > 4 and name not in ('Admin', 'MIG', 'SSISDB', 'SessionStateIner', 'SessionStateIntra') and state = 0 --state = 0: ONLINE
+    where database_id > 4 and name not in ('Admin', 'SSISDB') and state = 0 --state = 0: ONLINE
 
     open permission_databases
 

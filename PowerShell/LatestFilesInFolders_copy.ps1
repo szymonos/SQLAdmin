@@ -10,13 +10,15 @@ PowerShell\LatestFilesInFolders_copy.ps1
 $srvSqlList = Import-Csv -Path '.\CSV\Export\enumSQLServers.csv' | Where-Object {$_.Env -eq 'DEV'} | Select-Object -ExpandProperty MachineName
 
 # Get credentials used for connecting to servers through WinRM
+# Get credentials used for connecting to servers through WinRM
 try {
-    $credsadm = Import-CliXml -Path "$($env:USERPROFILE)\adm.cred"
-} catch {
+    $credsadm = Import-CliXml -Path "$($env:USERPROFILE)\sza.cred"
+}
+catch {
     $credsadm = Get-Credential -Message 'Credentials required to get information about SQL servers from registry'
 }
 
-$copyFile = '.\PowerShell\LatestFilesInFolders.ps1'
+$copyFile = '\\abcdata\files\COMPANY\DT\Administratorzy\Git\PowerShell\SQL\LatestFilesInFolders.ps1'
 $destDir = 'C:\Inst\Scripts'
 foreach ($destServer in $srvSqlList) {
     #$destServer = $srvSqlList[0]
@@ -24,11 +26,12 @@ foreach ($destServer in $srvSqlList) {
     try {
         $sessionTo = New-PSSession -ComputerName $destServer -Credential $credsadm
         Invoke-Command -Session $sessionTo -ErrorAction Stop -ScriptBlock {
-            if($false -eq (Test-Path -Path $using:destDir)) {New-Item -ItemType Directory $using:destDir}
+            if ($false -eq (Test-Path -Path $using:destDir)) { New-Item -ItemType Directory $using:destDir }
         }
         Copy-Item -Path $copyFile -Destination $destDir -ToSession $sessionTo -Force -ErrorAction Stop
         Write-Host 'Copy file succeded' -ForegroundColor Green
-    } catch {
+    }
+    catch {
         Write-Host 'Copy file failed' -ForegroundColor Red
     }
     Remove-PSSession $sessionTo

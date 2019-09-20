@@ -13,75 +13,87 @@ dbcc shrinkfile(N'dbname_Data', 600000)
 go
 */
 declare @dbfiles as table (
-    ServerName sql_variant not null
-   ,DBName sysname
-   ,FileName sysname
-   ,DBSizeMB decimal(15, 2) not null
-   ,DBUsedSpaceMB decimal(15, 2) not null
-   ,DBFreeSpaceMB decimal(15, 2) not null
-   ,DBPctFree decimal(5, 2) not null
-   ,DBGrowth nvarchar(20) not null
-   ,LogName sysname
-   ,LogSizeMB decimal(15, 2) not null
-   ,LogFreeSpaceMB decimal(15, 2) not null
-   ,LogPctFree decimal(5, 2) not null
-   ,LogGrowth nvarchar(20) not null
+    ServerName sysname not null
+   ,DbId int not null
+   ,DBName sysname not null
+   ,DBFileName sysname not null
+   ,TypeId int not null
+   ,FileType nvarchar(60) not null
+   ,DBSizeMB decimal(15, 1) not null
+   ,DBUsedSpaceMB decimal(15, 1) null
+   ,DBFreeSpaceMB decimal(15, 1) null
+   ,DBPctFree decimal(5, 2) null
+   ,GrU nvarchar(2) not null
+   ,DBGrowth int not null
    ,DBState nvarchar(20) not null
-)
+   ,RecoverModel nvarchar(20) not null
+   ,PhysicalName sysname not null
+);
 
-declare @sqlcmd nvarchar(max)
-    = N'use ?
+declare @sqlcmd nvarchar(max) = N'';
+
 select
-    ServerName = serverproperty(''MachineName'')
-   ,DBName = ''?''
+    @sqlcmd += N'use ' + d.name
+               + N'
+select
+    ServerName = cast(serverproperty(''MachineName'') as sysname)
+   ,DbId = db_id()
+   ,DBName = db_name()
    ,DBFileName = f.name
-   ,DBSizeMB = cast(f.size / 128.0 as decimal(15, 2))
-   ,DBUsedSpaceMB = cast(cast(fileproperty(f.name, ''SpaceUsed'') as int) / 128.0 as decimal(15, 2))
-   ,DBFreeSpaceMB = cast(f.size / 128.0 - cast(fileproperty(f.name, ''SpaceUsed'') as int) / 128.0 as decimal(15, 2))
+   ,TypeId = f.type
+   ,FileType = f.type_desc
+   ,DBSizeMB = cast(f.size / 128.0 as decimal(15, 1))
+   ,DBUsedSpaceMB = cast(cast(fileproperty(f.name, ''SpaceUsed'') as int) / 128.0 as decimal(15, 1))
+   ,DBFreeSpaceMB = cast(f.size / 128.0 - cast(fileproperty(f.name, ''SpaceUsed'') as int) / 128.0 as decimal(15, 1))
    ,DBPctFree = 1 - cast(cast(fileproperty(f.name, ''SpaceUsed'') as decimal(15, 0)) / f.size as decimal(5, 2))
-   ,DBGrowth = case f.is_percent_growth
-             when 0 then format(cast(f.growth / 128.0 as int), ''G'') + ''MB''
-             when 1 then format(f.growth, ''G'') + ''%''
+   ,GrU = case f.is_percent_growth
+             when 0 then ''MB''
+             when 1 then ''%''
              else null end
-   ,LogName = l.name
-   ,LogSizeMB = cast(l.size / 128.0 as decimal(15, 2))
-   ,LogFreeSpaceMB = cast(l.size / 128.0 - cast(fileproperty(l.name, ''SpaceUsed'') as int) / 128.0 as decimal(15, 2))
-   ,LogPctFree = 1 - cast(cast(fileproperty(l.name, ''SpaceUsed'') as decimal(15, 0)) / l.size as decimal(5, 2))
-   ,LogGrowth = case l.is_percent_growth
-             when 0 then format(cast(l.growth / 128.0 as int), ''G'') + ''MB''
-             when 1 then format(l.growth, ''G'') + ''%''
+   ,DBGrowth = case f.is_percent_growth
+             when 0 then cast(f.growth / 128.0 as int)
+             when 1 then f.growth
              else null end
    ,DBState = f.state_desc
+   ,RecoverModel = db.recovery_model_desc
+   ,PhysicalName = f.physical_name
 from
     sys.database_files as f
-    inner join sys.database_files as l
-        on l.type = 1
-where
-    f.type = 0'
+	inner join sys.databases as db
+        on db.database_id = db_id()'
+from
+    sys.databases as d
 
-insert into @dbfiles exec sys.sp_MSforeachdb @sqlcmd
+insert into @dbfiles exec sp_executesql @sqlcmd
 
 select
     d.ServerName
+   ,DbId
    ,d.DBName
-   ,d.FileName
+   ,d.DBFileName
+   ,d.FileType
    ,d.DBSizeMB
+   ,SuggestedMB = ceiling(d.DBUsedSpaceMB / 0.9 / 64) * 64
    ,d.DBUsedSpaceMB
    ,d.DBFreeSpaceMB
    ,d.DBPctFree
+   ,d.GrU
    ,d.DBGrowth
-   ,d.LogName
-   ,d.LogSizeMB
-   ,d.LogFreeSpaceMB
-   ,d.LogPctFree
-   ,d.LogGrowth
    ,d.DBState
+   ,d.RecoverModel
+   ,d.PhysicalName
 from
     @dbfiles as d
+where
+    1 = 1
+	--and d.DbId > 4
+	--and d.TypeId <> 1 --exclude log files
+	--and d.DBName = 'tempdb'
 order by
-    d.DBFreeSpaceMB desc
-	--d.LogFreeSpaceMB desc
-    --d.DBName
+    --d.DbId, d.TypeId
+    --d.DBFreeSpaceMB desc
+    --d.LogFreeSpaceMB desc
+    d.DBName, d.TypeId
     --d.DBPctFree
     --d.DBSizeMB desc
-	--d.DBGrowth
+    --d.DBGrowth
